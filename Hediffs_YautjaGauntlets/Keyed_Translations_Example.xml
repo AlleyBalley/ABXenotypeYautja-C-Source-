@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Place these keys in your mod's:
+    Languages/English/Keyed/Gauntlets.xml
+-->
+<LanguageData>
+    <ABX_InstalledGauntlet>{0} successfully equipped and installed {1}</ABX_InstalledGauntlet>
+    <ABX_ConfirmRemoveGauntlet>Are you sure you want {0} to remove {1}? The gauntlet and any slotted modules will be dropped on the ground.</ABX_ConfirmRemoveGauntlet>
+    <ABX_RemovedGauntlet>{0} removed {1}.</ABX_RemovedGauntlet>
+</LanguageData>

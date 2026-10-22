@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    ╔══════════════════════════════════════════════════════════════════════════════════╗
+    ║  ABXENOTYPE YAUTJA — GAUNTLET SELF-INSTALL & SELF-REMOVE XML BOILERPLATE          ║
+    ╠══════════════════════════════════════════════════════════════════════════════════╣
+    ║  This file provides exact XML examples for setting up Gauntlets and Gauntlet    ║
+    ║  Modules that pawns can install and remove themselves (like Biotech Mechlinks),  ║
+    ║  without requiring doctor surgery.                                               ║
+    ║                                                                                  ║
+    ║  COMPONENTS USED:                                                                ║
+    ║  1. Item ThingDef:                                                               ║
+    ║     - CompProperties_Usable (vanilla)                                            ║
+    ║     - ABXenotypeYautja.CompProperties_UseEffectInstallGauntlet (C#)              ║
+    ║  2. Installed HediffDef:                                                         ║
+    ║     - ABXenotypeYautja.HediffCompProperties_RemoveGauntlet (C#)                  ║
+    ╚══════════════════════════════════════════════════════════════════════════════════╝
+-->
+<Defs>
+
+    <!-- ========================================================================= -->
+    <!-- 1. BASE GAUNTLET ITEM (Example: Metal Tech Gauntlet)                       -->
+    <!-- ========================================================================= -->
+    <!--
+        Add these comps to your gauntlet ThingDef (or its parent abstract).
+        Right-clicking the item in inventory or on the ground displays "Install metal gauntlet".
+        The pawn walks to it, equips/installs it, and receives the hediff on an available forearm.
+    -->
+    <ThingDef ParentName="BodyPartBase">
+        <defName>ABYautja_TechGauntlet</defName>
+        <label>metal gauntlet</label>
+        <description>A metal gauntlet attached to the forearm. Can be installed directly by the wearer without medical surgery. When installed, it provides a removal command to take it off at any time.</description>
+        <thingClass>ThingWithComps</thingClass>
+        
+        <comps>
+            <li Class="CompProperties_Forbiddable"/>
+
+            <!-- Vanilla usable component: triggers the "Install" action and JobDriver_UseItem -->
+            <li Class="CompProperties_Usable">
+                <useJob>UseItem</useJob>
+                <useLabel>Install {0}</useLabel>
+                <useDuration>300</useDuration> <!-- 5 seconds of work -->
+            </li>
+
+            <!-- C# Custom UseEffect: validates limbs, checks tags, and applies the Hediff -->
+            <li Class="ABXenotypeYautja.CompProperties_UseEffectInstallGauntlet">
+                <!-- The HediffDef given to the pawn -->
+                <hediffDef>ABYautja_TechGauntlet</hediffDef>
+
+                <!-- Target body part def (Yautja Forearm or standard Arm/Hand) -->
+                <bodyPart>ABYautja_Forearm</bodyPart>
+
+                <!-- Prevents installing multiple base gauntlets onto the exact same limb -->
+                <incompatibleHediffTags>
+                    <li>GauntletTag</li>
+                </incompatibleHediffTags>
+
+                <!-- Sound played when the installation finishes (optional) -->
+                <!-- <soundOnInstall>MechlinkInstallationMusic</soundOnInstall> -->
+            </li>
+        </comps>
+    </ThingDef>
+
+
+    <!-- ========================================================================= -->
+    <!-- 2. BASE GAUNTLET HEDIFF (Installed on pawn)                                -->
+    <!-- ========================================================================= -->
+    <!--
+        When installed, this Hediff appears in the health tab.
+        Selecting the colonist shows a "Remove Gauntlet (Forearm)" Gizmo command button.
+        Clicking it prompts a confirmation dialog, removes the Hediff, and drops the original item.
+    -->
+    <HediffDef ParentName="ImplantHediffBase">
+        <defName>ABYautja_TechGauntlet</defName>
+        <label>metal gauntlet</label>
+        <description>A metal gauntlet attached to the forearm. Can be removed at any time via the colonist command menu.</description>
+        <hediffClass>Hediff_Implant</hediffClass>
+        <defaultLabelColor>(0.6, 0.6, 0.9)</defaultLabelColor>
+        <isBad>false</isBad>
+
+        <!-- Fallback item to spawn when removed -->
+        <spawnThingOnRemoved>ABYautja_TechGauntlet</spawnThingOnRemoved>
+
+        <!-- Tag used by incompatibleHediffTags to prevent duplicates on the same arm -->
+        <tags>
+            <li>GauntletTag</li>
+        </tags>
+
+        <!-- Marks this as a gauntlet for module attachment checks -->
+        <modExtensions>
+            <li Class="ABXenotypeYautja.DefExtension_GauntletModuleHediff">
+                <isModule>false</isModule>
+            </li>
+        </modExtensions>
+
+        <comps>
+            <!-- C# Custom Removal Component: generates the UI Gizmo button -->
+            <li Class="ABXenotypeYautja.HediffCompProperties_RemoveGauntlet">
+                <!-- The item to drop on the ground (falls back to spawnThingOnRemoved if omitted) -->
+                <thingDefToSpawn>ABYautja_TechGauntlet</thingDefToSpawn>
+                <removeLabel>Remove Gauntlet</removeLabel>
+                <removeDesc>Remove this gauntlet from the forearm and drop it on the ground. Any attached blade or utility modules on this limb will also be ejected safely.</removeDesc>
+                <requireConfirmation>true</requireConfirmation>
+                <!-- Optional custom icon path: <uiIconPath>UI/Commands/RemoveGauntlet</uiIconPath> -->
+            </li>
+        </comps>
+    </HediffDef>
+
+
+    <!-- ========================================================================= -->
+    <!-- 3. GAUNTLET MODULE ITEM (Example: Wristblade or Utility Module)             -->
+    <!-- ========================================================================= -->
+    <!--
+        Modules require that the pawn ALREADY has an installed gauntlet on that limb!
+        Set <requiresExistingGauntlet>true</requiresExistingGauntlet>.
+    -->
+    <ThingDef ParentName="BodyPartBase">
+        <defName>ABYautja_WristbladeModule</defName>
+        <label>wristblade module</label>
+        <description>A retractable blade module designed to slot directly into an existing Yautja gauntlet.</description>
+        <thingClass>ThingWithComps</thingClass>
+
+        <comps>
+            <li Class="CompProperties_Forbiddable"/>
+
+            <li Class="CompProperties_Usable">
+                <useJob>UseItem</useJob>
+                <useLabel>Slot {0} into gauntlet</useLabel>
+                <useDuration>180</useDuration>
+            </li>
+
+            <li Class="ABXenotypeYautja.CompProperties_UseEffectInstallGauntlet">
+                <hediffDef>ABYautja_WristbladeModule</hediffDef>
+                <bodyPart>ABYautja_Forearm</bodyPart>
+
+                <!-- Crucial: ensures this module can only be slotted if a gauntlet is present on the arm -->
+                <requiresExistingGauntlet>true</requiresExistingGauntlet>
+            </li>
+        </comps>
+    </ThingDef>
+
+
+    <!-- ========================================================================= -->
+    <!-- 4. GAUNTLET MODULE HEDIFF (Installed on pawn)                              -->
+    <!-- ========================================================================= -->
+    <HediffDef ParentName="ImplantHediffBase">
+        <defName>ABYautja_WristbladeModule</defName>
+        <label>wristblade module</label>
+        <description>A retractable blade mounted onto the gauntlet.</description>
+        <hediffClass>Hediff_Implant</hediffClass>
+        <isBad>false</isBad>
+        <spawnThingOnRemoved>ABYautja_WristbladeModule</spawnThingOnRemoved>
+
+        <modExtensions>
+            <li Class="ABXenotypeYautja.DefExtension_GauntletModuleHediff">
+                <isModule>true</isModule>
+            </li>
+        </modExtensions>
+
+        <comps>
+            <!-- Modules can also be removed individually via their own Gizmo -->
+            <li Class="ABXenotypeYautja.HediffCompProperties_RemoveGauntlet">
+                <thingDefToSpawn>ABYautja_WristbladeModule</thingDefToSpawn>
+                <removeLabel>Detach Module</removeLabel>
+                <removeDesc>Detach this module from the gauntlet and drop it on the ground.</removeDesc>
+                <requireConfirmation>false</requireConfirmation>
+            </li>
+        </comps>
+    </HediffDef>
+
+</Defs>
