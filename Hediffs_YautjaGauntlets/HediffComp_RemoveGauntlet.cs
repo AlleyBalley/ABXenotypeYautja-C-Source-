@@ -8,15 +8,43 @@ using Verse;
 namespace ABXenotypeYautja
 {
     /// <summary>
-    /// HediffComp that provides a player-accessible Gizmo button to self-remove an installed gauntlet or module.
-    /// When clicked, it removes the Hediff from the pawn and spawns the original ThingDef on the ground at the pawn's feet.
+    /// HediffComp providing a player-accessible Gizmo button to self-remove an installed gauntlet or module.
+    /// When clicked, removes the Hediff from the pawn and spawns the original ThingDef back on the ground,
+    /// fully preserving the original material (Stuff) it was crafted from.
     /// Also detaches and drops any installed modules if a base gauntlet is removed.
-    /// Fully updated for RimWorld 1.5/1.6+ API standards.
+    /// Strictly compatible with C# 7.3 (.NET Framework 4.7.2) and RimWorld 1.6+.
     /// </summary>
     public class HediffComp_RemoveGauntlet : HediffComp
     {
+        /// <summary>
+        /// Stores the original crafting material (Stuff) of the gauntlet or module.
+        /// Preserved across save/load using Scribe_Defs.
+        /// </summary>
+        public ThingDef stuff;
+
         public HediffCompProperties_RemoveGauntlet Props =>
             (HediffCompProperties_RemoveGauntlet)props;
+
+        public override void CompExposeData()
+        {
+            base.CompExposeData();
+            Scribe_Defs.Look(ref stuff, "stuff");
+        }
+
+        /// <summary>
+        /// Displays the material in brackets on the health tab if present (e.g., 'wooden gauntlet (oak)').
+        /// </summary>
+        public override string CompLabelInBracketsExtra
+        {
+            get
+            {
+                if (stuff != null)
+                {
+                    return stuff.LabelAsStuff;
+                }
+                return base.CompLabelInBracketsExtra;
+            }
+        }
 
         /// <summary>
         /// Generates the removal Gizmo button when a player-controlled colonist is selected.
@@ -26,7 +54,6 @@ namespace ABXenotypeYautja
             if (Pawn == null || Pawn.Dead)
                 yield break;
 
-            // Only show removal command for player faction pawns
             if (Pawn.Faction != Faction.OfPlayer || !Pawn.RaceProps.Humanlike)
                 yield break;
 
@@ -45,7 +72,6 @@ namespace ABXenotypeYautja
                 action = HandleRemovalClick
             };
 
-            // Resolve icon: custom path -> spawned item icon -> fallback
             if (!string.IsNullOrEmpty(Props.uiIconPath))
             {
                 removeAction.icon = ContentFinder<Texture2D>.Get(Props.uiIconPath, false);
@@ -86,7 +112,7 @@ namespace ABXenotypeYautja
         }
 
         /// <summary>
-        /// Executes the removal of the gauntlet, drops the item into the world,
+        /// Executes gauntlet removal, drops the item into the world with its original Stuff,
         /// and cleanly detaches any secondary modules installed on the same limb.
         /// </summary>
         public void RemoveGauntlet()
@@ -97,13 +123,13 @@ namespace ABXenotypeYautja
 
             ThingDef thingToSpawn = Props.thingDefToSpawn ?? parent.def.spawnThingOnRemoved;
 
-            // 1. Spawn the main gauntlet item
+            // 1. Spawn the main gauntlet item with its preserved material (Stuff)
             if (thingToSpawn != null)
             {
-                SpawnItem(pawn, thingToSpawn);
+                SpawnItem(pawn, thingToSpawn, this.stuff);
             }
 
-            // 2. If this is a base gauntlet on a specific limb, also eject any attached modules on the same limb
+            // 2. If this is a base gauntlet on a limb, also eject any attached modules on the same limb
             if (parent.Part != null)
             {
                 List<Hediff> attachedModules = pawn.health.hediffSet.hediffs
@@ -112,18 +138,21 @@ namespace ABXenotypeYautja
                                 h.def.GetModExtension<DefExtension_GauntletModuleHediff>()?.isModule == true)
                     .ToList();
 
-                foreach (Hediff module in attachedModules)
+                for (int i = 0; i < attachedModules.Count; i++)
                 {
+                    Hediff module = attachedModules[i];
                     ThingDef moduleDrop = module.def.spawnThingOnRemoved;
                     if (moduleDrop != null)
                     {
-                        SpawnItem(pawn, moduleDrop);
+                        HediffComp_RemoveGauntlet moduleComp = module.TryGetComp<HediffComp_RemoveGauntlet>();
+                        ThingDef moduleStuff = (moduleComp != null) ? moduleComp.stuff : null;
+                        SpawnItem(pawn, moduleDrop, moduleStuff);
                     }
                     pawn.health.RemoveHediff(module);
                 }
             }
 
-            // 3. Keep label before removal for the notification message
+            // 3. Keep label before removal for notification
             string removedLabel = parent.LabelCap;
 
             // 4. Remove this Hediff
@@ -143,12 +172,19 @@ namespace ABXenotypeYautja
             Messages.Message(msg, pawn, MessageTypeDefOf.NeutralEvent);
         }
 
-        private void SpawnItem(Pawn pawn, ThingDef def)
+        private void SpawnItem(Pawn pawn, ThingDef def, ThingDef itemStuff = null)
         {
             if (pawn == null || def == null)
                 return;
 
-            Thing item = ThingMaker.MakeThing(def);
+            ThingDef resolvedStuff = itemStuff;
+            if (resolvedStuff == null && def.MadeFromStuff)
+            {
+                resolvedStuff = GenStuff.DefaultStuffFor(def);
+            }
+
+            // ThingMaker.MakeThing with preserved Stuff intact
+            Thing item = ThingMaker.MakeThing(def, resolvedStuff);
             if (pawn.Map != null && pawn.Position.IsValid)
             {
                 GenPlace.TryPlaceThing(item, pawn.Position, pawn.Map, ThingPlaceMode.Near);
