@@ -63,9 +63,15 @@ namespace ABXenotypeYautja
         {
             if (Props.requireConfirmation)
             {
-                TaggedString confirmText = "ABX_ConfirmRemoveGauntlet".CanTranslate()
-                    ? "ABX_ConfirmRemoveGauntlet".Translate(Pawn.LabelShortCap, parent.LabelCap)
-                    : (TaggedString)$"Are you sure you want {Pawn.LabelShortCap} to remove {parent.LabelCap}? The item will be dropped on the ground.";
+                TaggedString confirmText;
+                if ("ABX_ConfirmRemoveGauntlet".CanTranslate())
+                {
+                    confirmText = "ABX_ConfirmRemoveGauntlet".Translate(Pawn.LabelShortCap, parent.LabelCap);
+                }
+                else
+                {
+                    confirmText = $"Are you sure you want {Pawn.LabelShortCap} to remove {parent.LabelCap}? The item will be dropped on the ground.";
+                }
 
                 Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
                     confirmText,
@@ -124,9 +130,15 @@ namespace ABXenotypeYautja
             pawn.health.RemoveHediff(parent);
 
             // 5. Notify player
-            TaggedString msg = "ABX_RemovedGauntlet".CanTranslate()
-                ? "ABX_RemovedGauntlet".Translate(pawn.LabelShortCap, removedLabel)
-                : (TaggedString)$"{pawn.LabelShortCap} removed {removedLabel}.";
+            TaggedString msg;
+            if ("ABX_RemovedGauntlet".CanTranslate())
+            {
+                msg = "ABX_RemovedGauntlet".Translate(pawn.LabelShortCap, removedLabel);
+            }
+            else
+            {
+                msg = $"{pawn.LabelShortCap} removed {removedLabel}.";
+            }
 
             Messages.Message(msg, pawn, MessageTypeDefOf.NeutralEvent);
         }

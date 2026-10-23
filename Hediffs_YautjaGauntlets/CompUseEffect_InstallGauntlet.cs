@@ -95,9 +95,15 @@ namespace ABXenotypeYautja
 
             // Notification message
             string targetPartLabel = targetPart != null ? $" ({targetPart.Label})" : string.Empty;
-            TaggedString msg = "ABX_InstalledGauntlet".CanTranslate()
-                ? "ABX_InstalledGauntlet".Translate(usedBy.LabelShortCap, parent.LabelCap) + targetPartLabel
-                : $"{usedBy.LabelShortCap} equipped {parent.LabelCap}{targetPartLabel}.";
+            TaggedString msg;
+            if ("ABX_InstalledGauntlet".CanTranslate())
+            {
+                msg = "ABX_InstalledGauntlet".Translate(usedBy.LabelShortCap, parent.LabelCap) + targetPartLabel;
+            }
+            else
+            {
+                msg = $"{usedBy.LabelShortCap} equipped {parent.LabelCap}{targetPartLabel}.";
+            }
 
             Messages.Message(msg, usedBy, MessageTypeDefOf.PositiveEvent);
         }
