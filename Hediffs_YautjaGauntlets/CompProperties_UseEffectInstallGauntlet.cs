@@ -41,6 +41,12 @@ namespace ABXenotypeYautja
         public bool requiresExistingGauntlet = false;
 
         /// <summary>
+        /// Optional job def to use when installing the gauntlet.
+        /// If omitted, dynamically falls back to CompUsable.Props.useJob or DefDatabase lookup.
+        /// </summary>
+        public JobDef useJob;
+
+        /// <summary>
         /// Sound played when the installation is successfully completed.
         /// </summary>
         public SoundDef soundOnInstall;

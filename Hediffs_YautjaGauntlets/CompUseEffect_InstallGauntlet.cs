@@ -128,13 +128,31 @@ namespace ABXenotypeYautja
             if (compUsable != null)
             {
                 // RimWorld 1.6+ signature: TryStartUseJob(Pawn pawn, LocalTargetInfo extraTarget, bool forced)
+                // CompUsable automatically creates and manages the job using its own configured Props.useJob from XML.
                 compUsable.TryStartUseJob(pawn, LocalTargetInfo.Invalid, false);
             }
             else
             {
-                // Fallback: manually queue the vanilla artifact-use job
-                Job job = JobMaker.MakeJob(JobDefOf.UseArtifact, parent);
-                pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+                // Dynamic resolution without any hardcoded JobDefOf references
+                JobDef resolvedJob = Props.useJob;
+                if (resolvedJob == null && compUsable != null && compUsable.Props != null)
+                {
+                    resolvedJob = compUsable.Props.useJob;
+                }
+                if (resolvedJob == null)
+                {
+                    resolvedJob = DefDatabase<JobDef>.GetNamedSilentFail("UseItem");
+                }
+
+                if (resolvedJob != null)
+                {
+                    Job job = JobMaker.MakeJob(resolvedJob, parent);
+                    pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+                }
+                else
+                {
+                    Log.Error("[ABXenotypeYautja] Could not start gauntlet install job: item lacks CompUsable and no useJob was defined.");
+                }
             }
         }
 
