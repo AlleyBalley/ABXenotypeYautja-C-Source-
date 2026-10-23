@@ -11,7 +11,7 @@ namespace ABXenotypeYautja
     /// <summary>
     /// Use-effect component enabling pawns to self-install gauntlets and gauntlet modules.
     /// Operates identically to the Biotech Mechlink installation mechanism using CompUsable.
-    /// When ordered via the float menu, the pawn uses the item and receives the configured Hediff.
+    /// Uses modern RimWorld 1.5/1.6+ API (AcceptanceReport instead of obsolete out string failReason).
     /// </summary>
     public class CompUseEffect_InstallGauntlet : CompUseEffect
     {
@@ -20,58 +20,43 @@ namespace ABXenotypeYautja
 
         /// <summary>
         /// Validates whether the given pawn can self-install this gauntlet or module.
-        /// Checks humanoid capability, manipulation, limb availability, and prerequisites.
+        /// Modern 1.5/1.6+ signature returning AcceptanceReport.
         /// </summary>
         /// <param name="p">The pawn attempting to install the item.</param>
-        /// <param name="failReason">Out parameter containing the reason if installation is rejected.</param>
-        /// <returns>True if the item can be installed, false otherwise.</returns>
-        public override bool CanBeUsedBy(Pawn p, out string failReason)
+        /// <returns>AcceptanceReport indicating whether the action is permitted, with failure reason if rejected.</returns>
+        public override AcceptanceReport CanBeUsedBy(Pawn p)
         {
-            failReason = null;
-
             if (p == null || p.Dead)
                 return false;
 
             if (!p.RaceProps.Humanlike)
-            {
-                failReason = "Must be humanlike.";
-                return false;
-            }
+                return new AcceptanceReport("Must be humanlike.");
 
             if (!p.health.capacities.CapableOf(PawnCapacityDefOf.Manipulation))
-            {
-                failReason = "Incapable of manipulation.";
-                return false;
-            }
+                return new AcceptanceReport("Incapable of manipulation.");
 
             if (Props.hediffDef == null)
-            {
-                failReason = "Misconfigured item (missing target HediffDef).";
-                return false;
-            }
+                return new AcceptanceReport("Misconfigured item (missing target HediffDef).");
 
             // If the item specifies target body parts, find an eligible limb
             bool hasPartRequirements = Props.bodyPart != null || (Props.bodyParts != null && Props.bodyParts.Count > 0);
             if (hasPartRequirements)
             {
-                BodyPartRecord candidatePart = GetEligibleBodyPart(p, out string partFailReason);
-                if (candidatePart == null)
-                {
-                    failReason = partFailReason;
-                    return false;
-                }
+                AcceptanceReport partReport = GetEligibleBodyPart(p, out _);
+                if (!partReport.Accepted)
+                    return partReport;
             }
             else
             {
                 // Whole-body installation: ensure the pawn doesn't already have the Hediff
                 if (p.health.hediffSet.HasHediff(Props.hediffDef))
                 {
-                    failReason = Props.customFailReasonAlreadyInstalled ?? "Already installed.";
-                    return false;
+                    string reason = Props.customFailReasonAlreadyInstalled ?? "Already installed.";
+                    return new AcceptanceReport(reason);
                 }
             }
 
-            return true;
+            return AcceptanceReport.WasAccepted;
         }
 
         /// <summary>
@@ -90,10 +75,10 @@ namespace ABXenotypeYautja
             bool hasPartRequirements = Props.bodyPart != null || (Props.bodyParts != null && Props.bodyParts.Count > 0);
             if (hasPartRequirements)
             {
-                targetPart = GetEligibleBodyPart(usedBy, out _);
-                if (targetPart == null)
+                AcceptanceReport partReport = GetEligibleBodyPart(usedBy, out targetPart);
+                if (!partReport.Accepted || targetPart == null)
                 {
-                    Log.Warning($"[ABXenotypeYautja] {usedBy.LabelShort} attempted to install {parent.LabelCap}, but no eligible body part was found.");
+                    Log.Warning($"[ABXenotypeYautja] {usedBy.LabelShort} attempted to install {parent.LabelCap}, but no eligible body part was found: {partReport.Reason}");
                     return;
                 }
             }
@@ -105,37 +90,35 @@ namespace ABXenotypeYautja
             // Play installation sound if specified
             if (Props.soundOnInstall != null && usedBy.Map != null)
             {
-                Props.soundOnInstall.PlayOneShot(SoundInfo.InMap(new TargetInfo(usedBy.Position, usedBy.Map)));
+                Props.soundOnInstall.PlayOneShot(SoundInfo.InMap(usedBy));
             }
 
             // Notification message
             string targetPartLabel = targetPart != null ? $" ({targetPart.Label})" : string.Empty;
-            Messages.Message("ABX_InstalledGauntlet".Translate(usedBy.LabelShortCap, parent.LabelCap) + targetPartLabel,
-                usedBy, MessageTypeDefOf.PositiveEvent);
+            TaggedString msg = "ABX_InstalledGauntlet".CanTranslate()
+                ? "ABX_InstalledGauntlet".Translate(usedBy.LabelShortCap, parent.LabelCap) + targetPartLabel
+                : $"{usedBy.LabelShortCap} equipped {parent.LabelCap}{targetPartLabel}.";
+
+            Messages.Message(msg, usedBy, MessageTypeDefOf.PositiveEvent);
         }
 
         /// <summary>
         /// Finds the first non-missing limb eligible to receive this gauntlet or module.
+        /// Returns AcceptanceReport with descriptive failure reasons if no limb is eligible.
         /// </summary>
-        private BodyPartRecord GetEligibleBodyPart(Pawn p, out string failReason)
+        private AcceptanceReport GetEligibleBodyPart(Pawn p, out BodyPartRecord eligiblePart)
         {
-            failReason = null;
+            eligiblePart = null;
 
             if (p?.RaceProps?.body == null)
-            {
-                failReason = "Invalid pawn body structure.";
-                return null;
-            }
+                return new AcceptanceReport("Invalid pawn body structure.");
 
             List<BodyPartRecord> candidateParts = p.RaceProps.body.AllParts
                 .Where(part => IsMatchingPartDef(part.def))
                 .ToList();
 
             if (candidateParts.Count == 0)
-            {
-                failReason = "Body lacks suitable limbs.";
-                return null;
-            }
+                return new AcceptanceReport("Body lacks suitable limbs.");
 
             // Check non-missing parts
             List<BodyPartRecord> intactParts = candidateParts
@@ -143,20 +126,17 @@ namespace ABXenotypeYautja
                 .ToList();
 
             if (intactParts.Count == 0)
-            {
-                failReason = "Required limb is missing.";
-                return null;
-            }
+                return new AcceptanceReport("Required limb is missing.");
 
             // Check parts that don't already have this exact hediff
             List<BodyPartRecord> withoutSameHediff = intactParts
-                .Where(part => !p.health.hediffSet.HasHediff(Props.hediffDef, part))
+                .Where(part => !p.health.hediffSet.hediffs.Any(h => h.def == Props.hediffDef && h.Part == part))
                 .ToList();
 
             if (withoutSameHediff.Count == 0)
             {
-                failReason = Props.customFailReasonAlreadyInstalled ?? "Already installed on all available limbs.";
-                return null;
+                string reason = Props.customFailReasonAlreadyInstalled ?? "Already installed on all available limbs.";
+                return new AcceptanceReport(reason);
             }
 
             // Filter by tag compatibility (e.g., prevent two base gauntlets on the same limb)
@@ -172,10 +152,7 @@ namespace ABXenotypeYautja
             }).ToList();
 
             if (tagCompatibleParts.Count == 0)
-            {
-                failReason = "Limb already has an incompatible item installed.";
-                return null;
-            }
+                return new AcceptanceReport("Limb already has an incompatible item installed.");
 
             // Filter by prerequisite gauntlet requirement (for modules)
             List<BodyPartRecord> finalEligibleParts = tagCompatibleParts.Where(part =>
@@ -191,13 +168,14 @@ namespace ABXenotypeYautja
 
             if (finalEligibleParts.Count == 0)
             {
-                failReason = Props.requiresExistingGauntlet
+                string reason = Props.requiresExistingGauntlet
                     ? "Requires an installed gauntlet on this limb."
                     : "No compatible limb found.";
-                return null;
+                return new AcceptanceReport(reason);
             }
 
-            return finalEligibleParts.FirstOrDefault();
+            eligiblePart = finalEligibleParts.FirstOrDefault();
+            return AcceptanceReport.WasAccepted;
         }
 
         private bool IsMatchingPartDef(BodyPartDef def)

@@ -5,6 +5,7 @@ namespace ABXenotypeYautja
     /// <summary>
     /// Configuration properties for HediffComp_RemoveGauntlet.
     /// Added to gauntlet and module HediffDefs to enable a self-removal Gizmo button.
+    /// Compatible with RimWorld 1.5 and 1.6+.
     /// </summary>
     public class HediffCompProperties_RemoveGauntlet : HediffCompProperties
     {

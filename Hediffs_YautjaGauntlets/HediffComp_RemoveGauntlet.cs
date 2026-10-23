@@ -11,6 +11,7 @@ namespace ABXenotypeYautja
     /// HediffComp that provides a player-accessible Gizmo button to self-remove an installed gauntlet or module.
     /// When clicked, it removes the Hediff from the pawn and spawns the original ThingDef on the ground at the pawn's feet.
     /// Also detaches and drops any installed modules if a base gauntlet is removed.
+    /// Fully updated for RimWorld 1.5/1.6+ API standards.
     /// </summary>
     public class HediffComp_RemoveGauntlet : HediffComp
     {
@@ -22,7 +23,11 @@ namespace ABXenotypeYautja
         /// </summary>
         public override IEnumerable<Gizmo> CompGetGizmos()
         {
-            if (Pawn == null || Pawn.Dead || !Pawn.IsColonistPlayerControlled)
+            if (Pawn == null || Pawn.Dead)
+                yield break;
+
+            // Only show removal command for player faction pawns
+            if (Pawn.Faction != Faction.OfPlayer || !Pawn.RaceProps.Humanlike)
                 yield break;
 
             string label = Props.removeLabel;
@@ -58,7 +63,10 @@ namespace ABXenotypeYautja
         {
             if (Props.requireConfirmation)
             {
-                string confirmText = "ABX_ConfirmRemoveGauntlet".Translate(Pawn.LabelShortCap, parent.LabelCap);
+                TaggedString confirmText = "ABX_ConfirmRemoveGauntlet".CanTranslate()
+                    ? "ABX_ConfirmRemoveGauntlet".Translate(Pawn.LabelShortCap, parent.LabelCap)
+                    : (TaggedString)$"Are you sure you want {Pawn.LabelShortCap} to remove {parent.LabelCap}? The item will be dropped on the ground.";
+
                 Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
                     confirmText,
                     RemoveGauntlet,
@@ -109,12 +117,18 @@ namespace ABXenotypeYautja
                 }
             }
 
-            // 3. Remove this Hediff
+            // 3. Keep label before removal for the notification message
+            string removedLabel = parent.LabelCap;
+
+            // 4. Remove this Hediff
             pawn.health.RemoveHediff(parent);
 
-            // 4. Notify player
-            Messages.Message("ABX_RemovedGauntlet".Translate(pawn.LabelShortCap, parent.LabelCap),
-                pawn, MessageTypeDefOf.NeutralEvent);
+            // 5. Notify player
+            TaggedString msg = "ABX_RemovedGauntlet".CanTranslate()
+                ? "ABX_RemovedGauntlet".Translate(pawn.LabelShortCap, removedLabel)
+                : (TaggedString)$"{pawn.LabelShortCap} removed {removedLabel}.";
+
+            Messages.Message(msg, pawn, MessageTypeDefOf.NeutralEvent);
         }
 
         private void SpawnItem(Pawn pawn, ThingDef def)
@@ -126,6 +140,10 @@ namespace ABXenotypeYautja
             if (pawn.Map != null && pawn.Position.IsValid)
             {
                 GenPlace.TryPlaceThing(item, pawn.Position, pawn.Map, ThingPlaceMode.Near);
+            }
+            else if (pawn.holdingOwner != null)
+            {
+                pawn.holdingOwner.TryAddOrTransfer(item);
             }
             else if (pawn.inventory != null)
             {

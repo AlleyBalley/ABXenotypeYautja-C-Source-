@@ -8,6 +8,7 @@ namespace ABXenotypeYautja
     /// Configuration properties for CompUseEffect_InstallGauntlet.
     /// Attached to a gauntlet or gauntlet module ThingDef alongside CompUsable.
     /// Governs target Hediff, target body parts, and prerequisite conditions.
+    /// Compatible with RimWorld 1.5 and 1.6+.
     /// </summary>
     public class CompProperties_UseEffectInstallGauntlet : CompProperties_UseEffect
     {
