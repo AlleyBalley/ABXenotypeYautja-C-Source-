@@ -127,11 +127,13 @@ namespace ABXenotypeYautja
             CompUsable compUsable = parent.GetComp<CompUsable>();
             if (compUsable != null)
             {
-                compUsable.TryStartUseJob(pawn);
+                // RimWorld 1.6+ signature: TryStartUseJob(Pawn pawn, LocalTargetInfo extraTarget, bool forced)
+                compUsable.TryStartUseJob(pawn, LocalTargetInfo.Invalid, false);
             }
             else
             {
-                Job job = JobMaker.MakeJob(JobDefOf.UseItem, parent);
+                // Fallback: manually queue the vanilla artifact-use job
+                Job job = JobMaker.MakeJob(JobDefOf.UseArtifact, parent);
                 pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
             }
         }
